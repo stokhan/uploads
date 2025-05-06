@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Upload ke GitHub</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background: linear-gradient(135deg, #dff2ff, #e2f0f9, #f1f8ff);
+    }
+    .glass {
+      background: rgba(255, 255, 255, 0.3);
+      backdrop-filter: blur(12px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+    }
+    .neumorphic {
+      background: #f1f5f9;
+      border-radius: 20px;
+      box-shadow: 10px 10px 20px #d1d9e6, -10px -10px 20px #ffffff;
+    }
+    .neumorphic-button {
+      background: #f1f5f9;
+      border: none;
+      border-radius: 12px;
+      box-shadow: 6px 6px 12px #d1d9e6, -6px -6px 12px #ffffff;
+      transition: all 0.2s ease-in-out;
+    }
+    .neumorphic-button:hover {
+      transform: scale(1.03);
+      box-shadow: 2px 2px 6px #d1d9e6, -2px -2px 6px #ffffff;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-6">
+
+  <div class="neumorphic w-full max-w-xl p-8">
+    <h1 class="text-3xl font-bold text-center mb-6 text-gray-800">Upload File ke GitHub</h1>
+
+    <div class="mb-4">
+      <label class="block text-gray-700 font-medium mb-1">Pilih File (Max 25MB)</label>
+      <input type="file" id="fileInput" class="w-full p-3 rounded border border-gray-300 focus:outline-none">
+    </div>
+
+    <button onclick="upload()" class="neumorphic-button w-full py-3 text-lg font-semibold text-blue-700">
+      Upload
+    </button>
+
+    <div id="loading" class="hidden text-center mt-4 text-gray-600 animate-pulse">Mengupload...</div>
+    <div id="status" class="mt-4 text-sm text-center"></div>
+
+    <div class="mt-6 text-gray-700 text-sm">
+      <p class="font-semibold">Statistik:</p>
+      <p>Total Upload Berhasil: <span id="successCount">0</span></p>
+      <p>Total Upload Gagal: <span id="failCount">0</span></p>
+      <p>Total Ukuran Upload: <span id="totalSize">0</span> MB</p>
+      <p>Total Pengunjung: <span id="visitCount">0</span></p>
+    </div>
+  </div>
+
+  <script>
+    const GITHUB_USERNAME = "stokhan";
+    const REPO_NAME = "uploads";
+    const BRANCH = "main";
+    const TOKEN = "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"; // GANTI TOKEN!
+
+    let successCount = parseInt(localStorage.getItem('successCount') || '0');
+    let failCount = parseInt(localStorage.getItem('failCount') || '0');
+    let totalSizeMB = parseFloat(localStorage.getItem('totalSizeMB') || '0');
+    let visitCount = parseInt(localStorage.getItem('visitCount') || '0') + 1;
+    localStorage.setItem('visitCount', visitCount);
+
+    document.getElementById("successCount").innerText = successCount;
+    document.getElementById("failCount").innerText = failCount;
+    document.getElementById("totalSize").innerText = totalSizeMB.toFixed(2);
+    document.getElementById("visitCount").innerText = visitCount;
+
+    async function upload() {
+      const fileInput = document.getElementById('fileInput');
+      const status = document.getElementById('status');
+      const loading = document.getElementById('loading');
+      const file = fileInput.files[0];
+      status.innerHTML = "";
+      loading.classList.remove('hidden');
+
+      if (!file) {
+        alert("Pilih file terlebih dahulu!");
+        loading.classList.add('hidden');
+        return;
+      }
+
+      if (file.size > 25 * 1024 * 1024) {
+        alert("Ukuran file maksimal 25MB!");
+        loading.classList.add('hidden');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async function () {
+        const base64Content = reader.result.split(',')[1];
+        const filePath = `uploads/${Date.now()}_${file.name}`;
+        const apiUrl = `https://api.github.com/repos/${GITHUB_USERNAME}/${REPO_NAME}/contents/${filePath}`;
+
+        try {
+          const res = await fetch(apiUrl, {
+            method: "PUT",
+            headers: {
+              "Authorization": `Bearer ${TOKEN}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              message: `Upload ${file.name}`,
+              content: base64Content,
+              branch: BRANCH
+            })
+          });
+
+          const json = await res.json();
+          if (res.ok) {
+            const rawUrl = `https://raw.githubusercontent.com/${GITHUB_USERNAME}/${REPO_NAME}/${BRANCH}/${filePath}`;
+            status.innerHTML = `<div class="text-green-600">Upload berhasil! <a href="${rawUrl}" target="_blank" class="underline font-medium">Lihat File</a></div>`;
+            successCount++;
+            totalSizeMB += (file.size / (1024 * 1024));
+            localStorage.setItem('successCount', successCount);
+            localStorage.setItem('totalSizeMB', totalSizeMB);
+          } else {
+            throw new Error(json.message || res.statusText);
+          }
+        } catch (err) {
+          status.innerHTML = `<div class="text-red-600">Upload gagal: ${err.message}</div>`;
+          failCount++;
+          localStorage.setItem('failCount', failCount);
+        }
+
+        // Update UI
+        document.getElementById("successCount").innerText = successCount;
+        document.getElementById("failCount").innerText = failCount;
+        document.getElementById("totalSize").innerText = totalSizeMB.toFixed(2);
+        loading.classList.add('hidden');
+      };
+
+      reader.readAsDataURL(file);
+    }
+  </script>
+</body>
+</html>
